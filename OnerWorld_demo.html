@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en" class="intro-locked">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="OnerWorld: Dynamic Reference-Anchored Video World Modeling">
+  <title>OnerWorld — Dynamic Reference-Anchored Video World Modeling</title>
+  <style>
+    :root { color-scheme: dark; font-family: Arial, Helvetica, sans-serif; background: #07070a; color: #fafafa; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    html.intro-locked { overflow: hidden; }
+    .intro-locked body { position: fixed; inset: 0; overflow: hidden; }
+    .intro-locked .paper-content { display: none; }
+    .intro-scroll { height: 400svh; position: relative; }
+    .intro-locked .intro-scroll { height: 100svh; }
+    @media (max-width: 620px) { .intro-scroll { height: 320svh; } }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    button:focus-visible { outline: 2px solid white; outline-offset: 5px; }
+    [hidden] { display: none !important; }
+    .intro-screen { --logo-size: clamp(42px, 11vw, 220px); position: sticky; top: 0; width: 100%; height: 100vh; height: 100svh; isolation: isolate; overflow: hidden; background: #07070a; }
+    .video-wall, .video-grid, .shade, .logo-mask-layer, .intro-content { position: absolute; inset: 0; }
+    .video-wall { z-index: 0; overflow: hidden; }
+    .video-grid { display: grid; grid-template: repeat(4, minmax(0, 1fr)) / repeat(4, minmax(0, 1fr)); transform: scale(2); transform-origin: center; will-change: transform; }
+    .tile { min-width: 0; min-height: 0; overflow: hidden; opacity: 0; background: #07070a; }
+    .tile video { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .shade { z-index: 1; background: #07070a; opacity: 0; pointer-events: none; }
+    .logo-mask-layer { z-index: 2; display: flex; align-items: center; justify-content: center; background: #000; mix-blend-mode: multiply; overflow: hidden; pointer-events: none; }
+    .logo-mask-text, .logo-slot { font-size: var(--logo-size); font-weight: 700; line-height: 1.06; letter-spacing: 0; white-space: nowrap; margin: 0; }
+    /* Repaint at each scale: will-change here can cache only the initial cropped glyph. */
+    .logo-mask-text { position: relative; flex-shrink: 0; color: white; }
+    .intro-content { z-index: 3; pointer-events: none; }
+    .logo-slot { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0; }
+    .support { position: absolute; left: 50%; top: calc(50% + var(--logo-size) * .58 + 24px); width: min(90%, 1100px); margin: 0; text-align: center; font-size: clamp(16px, 1.9vw, 34px); font-weight: 400; line-height: 1.45; text-wrap: balance; color: #e4e4e8; opacity: 0; }
+    .controls { position: absolute; z-index: 5; bottom: max(22px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; gap: 8px; padding: 7px; border: 1px solid #ffffff24; border-radius: 40px; background: #0c0c10c9; backdrop-filter: blur(14px); opacity: 0; transition: opacity .2s; }
+    .intro-screen:hover .controls, .controls:focus-within, .intro-screen.is-paused .controls, .intro-screen.is-complete .controls { opacity: 1; }
+    .controls button { background: transparent; border: 0; border-radius: 24px; padding: 9px 16px; font-size: 14px; white-space: nowrap; }
+    .controls button:hover { background: #ffffff1f; }
+    .gate { position: absolute; inset: 0; z-index: 6; display: grid; place-content: center; justify-items: center; gap: 22px; padding: 28px; text-align: center; background: #07070aeb; }
+    .gate p { max-width: 38em; margin: 0; font-size: 16px; line-height: 1.6; color: #dedee4; }
+    .gate button { border: 1px solid #ffffff60; border-radius: 30px; background: #ffffff12; padding: 12px 24px; }
+    .loading-ring { width: 24px; height: 24px; border: 2px solid #ffffff25; border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    @media (hover: none) { .controls { opacity: .85; } }
+    @media (max-width: 600px) { .support { top: calc(50% + var(--logo-size) * .58 + 18px); } .controls button { padding: 9px 12px; } }
+    @media (prefers-reduced-motion: reduce) { .loading-ring { animation: none; } .controls { transition: none; } }
+    .paper-content { color-scheme: dark; background: #000; color: #d2d2d7; padding: clamp(56px, 7vw, 104px) 24px; }
+    .paper-section { width: 100%; margin: 0 auto; scroll-margin-top: 32px; }
+    .paper-section h2 { color: #f5f5f7; margin: 0 0 28px; text-align: center; font-size: clamp(28px, 3vw, 38px); line-height: 1.2; letter-spacing: -.025em; }
+    .abstract { max-width: 900px; }
+    .abstract p { margin: 0; font-size: clamp(16px, 1.3vw, 18px); line-height: 1.85; }
+    .method { max-width: 1240px; margin-top: clamp(64px, 7vw, 100px); }
+    .method figure { margin: 0; }
+    .pipeline-link { display: block; }
+    .pipeline-link img { display: block; width: 100%; height: auto; }
+    .method figcaption { width: 100%; margin: 24px auto 0; color: #a1a1a6; font-size: 16px; line-height: 1.75; }
+    .method figcaption strong { color: #f5f5f7; }
+    .paper-content a { color: #9cbcff; text-underline-offset: 4px; }
+    .paper-content a:hover { color: #c6d9ff; }
+    .paper-content a:focus-visible { outline: 2px solid #9cbcff; outline-offset: 6px; }
+    @media (max-width: 600px) { .paper-content { padding-inline: 20px; } .paper-section h2 { margin-bottom: 22px; } .method figcaption { font-size: 15px; } }
+    .qualitative { max-width: 1440px; margin-top: clamp(72px, 8vw, 120px); }
+    .qualitative-intro { margin: -8px auto 44px; text-align: center; color: #a1a1a6; font-size: 17px; line-height: 1.65; }
+    .comparison-case { margin: 0; }
+    .comparison-case + .comparison-case { margin-top: clamp(44px, 5vw, 72px); }
+    .comparison-case h3 { margin: 0 0 16px; color: #f5f5f7; font-size: 20px; font-weight: 500; }
+    .comparison-case video { display: block; width: 100%; height: auto; aspect-ratio: 28 / 9; background: #101014; }
+    .comparison-case video:focus-visible { outline: 2px solid #9cbcff; outline-offset: 5px; }
+    .reference-strip { margin: 0 0 18px; overflow-x: auto; scrollbar-width: thin; scrollbar-color: #444 transparent; }
+    .reference-strip a { display: block; min-width: 960px; }
+    .reference-strip img { display: block; width: 100%; height: auto; }
+    .reference-strip:focus-visible { outline: 2px solid #9cbcff; outline-offset: 4px; }
+    .reference-note { margin: -24px 0 36px; color: #a1a1a6; font-size: 14px; line-height: 1.6; text-align: center; }
+    .comparison-player { position: relative; }
+    .comparison-player:focus-visible { outline: 2px solid #9cbcff; outline-offset: 5px; }
+    .global-prompt { position: absolute; left: 16px; right: 16px; bottom: 60px; margin: 0; padding: 14px 18px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; background: rgba(0,0,0,.86); color: #fff; font-size: 15px; line-height: 1.55; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+    .global-prompt strong { display: block; margin-bottom: 4px; font-size: 13px; font-weight: 600; letter-spacing: .02em; }
+    .comparison-player:hover .global-prompt, .comparison-player:focus-within .global-prompt { opacity: 1; }
+    @media (hover: none), (max-width: 760px) { .global-prompt { position: static; margin-top: 12px; padding: 12px 14px; font-size: 14px; opacity: 1; } .prompt-hover-hint { display: none; } }
+    @media (prefers-reduced-motion: reduce) { .global-prompt { transition: none; } }
+  </style>
+</head>
+<body>
+<main>
+<div class="intro-scroll" id="intro-scroll">
+<section class="intro-screen" id="intro-screen" aria-label="OnerWorld project introduction">
+  <div class="video-wall" aria-hidden="true"><div class="video-grid" id="video-grid"></div></div>
+  <div class="shade" id="shade" aria-hidden="true"></div>
+  <div class="logo-mask-layer" id="logo-mask-layer" aria-hidden="true" hidden>
+    <p class="logo-mask-text" id="logo-mask-text">One<span id="logo-mask-focus">r</span>World</p>
+  </div>
+  <header class="intro-content" id="intro-content" aria-hidden="true">
+    <h1 class="logo-slot" id="logo-slot">OnerWorld</h1>
+    <p class="support" id="paper-title">Dynamic Reference-Anchored Video World Modeling</p>
+  </header>
+  <div class="controls" aria-label="Playback controls">
+    <button type="button" id="pause-button" disabled>Pause</button>
+    <button type="button" id="replay-button" disabled>Replay</button>
+    <button type="button" id="fullscreen-button">Full screen</button>
+  </div>
+  <div class="gate" id="gate" role="status">
+    <span class="loading-ring" id="loading-ring" aria-hidden="true"></span>
+    <p id="gate-message">Loading videos…</p>
+    <button type="button" id="start-button" hidden>Play introduction</button>
+  </div>
+  <p class="sr-only" id="status" aria-live="polite"></p>
+  <noscript><div class="gate"><p>Enable JavaScript to play the OnerWorld introduction.</p></div></noscript>
+</section>
+</div>
+<div class="paper-content">
+  <section class="paper-section abstract" id="abstract" aria-labelledby="abstract-heading">
+    <h2 id="abstract-heading">Abstract</h2>
+    <p>Continuous world exploration aims to generate videos that progressively reveal new subjects and environments as the camera moves. However, existing methods struggle to introduce new references while maintaining continuity with previously generated content and following the camera trajectory. We accordingly propose OnerWorld, an autoregressive model that supports joint updates to visual reference sets and text prompts by strengthening interactions between incoming conditions and historical context. OnerWorld mainly includes two modules: Dynamic Reference-Anchored Conditioning and Dynamic Hybrid Attention. Specifically, Dynamic Reference-Anchored Conditioning uses a dynamic self-attention mask to align generation with active references and prompts, and rewrites historical KV caches under the next chunk’s conditions. Dynamic Hybrid Attention combines local Softmax attention with linear attention, rebuilding reference states to strengthen responses to new references while retaining global history for coherent transitions. To support training under dynamic conditions, we further curate 15K high-quality video clips. Experiments on real-world navigation and dynamic reference transitions demonstrate that OnerWorld improves reference fidelity and control over subject entry and exit, while maintaining camera accuracy and temporal consistency.</p>
+  </section>
+  <section class="paper-section method" id="method" aria-labelledby="method-heading">
+    <h2 id="method-heading">Method</h2>
+    <figure>
+      <a class="pipeline-link" href="assets/figures/Pipeline.png" target="_blank" rel="noopener" aria-label="Open the full-resolution OnerWorld method figure in a new tab">
+        <img src="assets/figures/Pipeline.png" width="2800" height="1571" loading="lazy" decoding="async" alt="OnerWorld architecture: (a) autoregressive generation with changing camera poses, prompts, and references; (b) Dynamic Reference-Anchored Conditioning with a temporal attention mask and KV cache updates; (c) Dynamic Hybrid Attention combining local Softmax attention with reference and global history states.">
+      </a>
+      <figcaption><strong>Overview of OnerWorld.</strong> (a) OnerWorld autoregressively generates videos conditioned on time-varying camera poses, prompts, and references. (b) Dynamic Reference-Anchored Conditioning aligns generation with active references through a dynamic self-attention mask and updates historical KV caches under new conditions. (c) Dynamic Hybrid Attention combines local Softmax attention with linear attention over reference and global history states, balancing responsiveness to new references with long-term consistency.</figcaption>
+    </figure>
+  </section>
+  <section class="paper-section qualitative" id="qualitative" aria-labelledby="qualitative-heading">
+    <h2 id="qualitative-heading">Qualitative Comparisons</h2>
+    <p class="qualitative-intro">Camera trajectories and generated videos across seven methods.</p>
+    <p class="reference-note prompt-hover-hint">Hover over a video to view its short prompt.</p>
+    <article class="comparison-case" aria-labelledby="case-1">
+      <h3 id="case-1">Case 1</h3>
+      <figure class="reference-strip" tabindex="0" aria-label="Reference conditions for Case 1">
+        <a href="assets/references/case-1.png" target="_blank" rel="noopener" aria-label="View reference conditions for Case 1">
+          <img src="assets/references/case-1.png" width="2688" height="304" loading="lazy" decoding="async" alt="Reference conditions, left to right: First frame; Subject 1: ginger cat wearing a bandana; Subject 2: chef with a name tag; Subject 3: bookstore with a striped awning; Subject 4: townhouse with ivy on the walls; Scene2: wide city boulevard with roadside trees.">
+        </a>
+      </figure>
+      <div class="comparison-player" tabindex="0" aria-label="Case 1 comparison" aria-describedby="prompt-1">
+        <video class="comparison-video" controls muted loop playsinline preload="none" width="2688" height="864" data-src="assets/qualitative/case1.mp4" aria-label="Case 1: Camera, Ours, H3+Adaption, EditWorld; SolarWM, EchoWM, Alaya-Evoke, Lingbot-World-v2"></video>
+        <p class="global-prompt" id="prompt-1"><strong>Short prompt</strong>A ginger tabby wearing a red bandana walks across a sunlit city intersection beneath brick apartment buildings. The camera pans toward a bookshop with a red-and-white striped awning and rows of books on outdoor shelves. A chef in a tall white hat, white coat, and dark trousers walks past the storefront while the cat continues along the curb. The view follows the leafy street toward a house covered in dense green ivy, revealing its pale window frames and steep roof, keeping in one continuous shot.</p>
+      </div>
+    </article>
+    <article class="comparison-case" aria-labelledby="case-2">
+      <h3 id="case-2">Case 2</h3>
+      <figure class="reference-strip" tabindex="0" aria-label="Reference conditions for Case 2">
+        <a href="assets/references/case-2.png" target="_blank" rel="noopener" aria-label="View reference conditions for Case 2">
+          <img src="assets/references/case-2.png" width="2688" height="304" loading="lazy" decoding="async" alt="Reference conditions, left to right: First frame; Subject 1: ginger cat in a harness; Subject 2: wicker picnic basket softly lit; Subject 3: pair of tourists chatting; Subject 4: delivery van loaded with cargo; Scene2: snow mountain region with sparse vegetation.">
+        </a>
+      </figure>
+      <div class="comparison-player" tabindex="0" aria-label="Case 2 comparison" aria-describedby="prompt-2">
+        <video class="comparison-video" controls muted loop playsinline preload="none" width="2688" height="864" data-src="assets/qualitative/case2.mp4" aria-label="Case 2: Camera, Ours, H3+Adaption, EditWorld; SolarWM, EchoWM, Alaya-Evoke, Lingbot-World-v2"></video>
+        <p class="global-prompt" id="prompt-2"><strong>Short prompt</strong>Snowy peaks rise above a green alpine valley as the camera tilts down toward a ginger cat wearing a dark harness. The cat walks beside a woven picnic basket with a rounded handle and fitted lid. Two tourists approach along the roadside: a man in a blue sweater and a blonde woman in a pale cardigan and blue jeans. The camera pans beyond them toward a winding mountain road, where a white delivery van drives around the bend beneath the rocky slopes, keeping in one continuous shot.</p>
+      </div>
+    </article>
+    <article class="comparison-case" aria-labelledby="case-3">
+      <h3 id="case-3">Case 3</h3>
+      <figure class="reference-strip" tabindex="0" aria-label="Reference conditions for Case 3">
+        <a href="assets/references/case-3.png" target="_blank" rel="noopener" aria-label="View reference conditions for Case 3">
+          <img src="assets/references/case-3.png" width="2688" height="304" loading="lazy" decoding="async" alt="Reference conditions, left to right: First frame; Subject 1: husky in a harness; Subject 2: black SUV splashed with mud; Subject 3: woman in her thirties in a floral blouse; Subject 4: musician carrying equipment; Scene2: rocky highland with distant snowy ridges.">
+        </a>
+      </figure>
+      <div class="comparison-player" tabindex="0" aria-label="Case 3 comparison" aria-describedby="prompt-3">
+        <video class="comparison-video" controls muted loop playsinline preload="none" width="2688" height="864" data-src="assets/qualitative/case3.mp4" aria-label="Case 3: Camera, Ours, H3+Adaption, EditWorld; SolarWM, EchoWM, Alaya-Evoke, Lingbot-World-v2"></video>
+        <p class="global-prompt" id="prompt-3"><strong>Short prompt</strong>The camera descends into a scrub-covered mountain valley under warm evening light. A gray-and-white husky with pointed ears, a curled tail, and a dark harness walks beside a boxy black SUV with muddy lower panels and a roof rack. A woman in a floral blouse and blue jeans walks near the track before leaving the view. A musician in a blue jacket, carrying a backpack and a long dark equipment case, then crosses the foreground as the camera follows the husky and SUV along the dusty road, keeping in one continuous shot.</p>
+      </div>
+    </article>
+    <article class="comparison-case" aria-labelledby="case-4">
+      <h3 id="case-4">Case 4</h3>
+      <figure class="reference-strip" tabindex="0" aria-label="Reference conditions for Case 4">
+        <a href="assets/references/case-4.png" target="_blank" rel="noopener" aria-label="View reference conditions for Case 4">
+          <img src="assets/references/case-4.png" width="2688" height="304" loading="lazy" decoding="async" alt="Reference conditions, left to right: First frame; Subject 1: cyclist in a leotard; Subject 2: tandem bicycle with a rear rack; Subject 3: seagull pecking at the ground; Subject 4: pine tree swaying in the wind; Scene2: market street with outdoor seating.">
+        </a>
+      </figure>
+      <div class="comparison-player" tabindex="0" aria-label="Case 4 comparison" aria-describedby="prompt-4">
+        <video class="comparison-video" controls muted loop playsinline preload="none" width="2688" height="864" data-src="assets/qualitative/case4.mp4" aria-label="Case 4: Camera, Ours, H3+Adaption, EditWorld; SolarWM, EchoWM, Alaya-Evoke, Lingbot-World-v2"></video>
+        <p class="global-prompt" id="prompt-4"><strong>Short prompt</strong>A gray-and-white gull pecks at the cobbles of a sunny shopping-street intersection. Behind it, a cyclist in a turquoise jersey, white helmet, and dark glasses rides past a teal storefront, followed by the riders of a dark tandem bicycle. The camera pulls back and tracks right as the gull leaves the foreground and the cyclists continue past colorful shop awnings. Green pine branches sweep across the near view, revealing cafe tables, chairs, and pale umbrellas along the adjoining street, keeping in one continuous shot.</p>
+      </div>
+    </article>
+    <article class="comparison-case" aria-labelledby="case-5">
+      <h3 id="case-5">Case 5</h3>
+      <figure class="reference-strip" tabindex="0" aria-label="Reference conditions for Case 5">
+        <a href="assets/references/case-5.png" target="_blank" rel="noopener" aria-label="View reference conditions for Case 5">
+          <img src="assets/references/case-5.png" width="2688" height="304" loading="lazy" decoding="async" alt="Reference conditions, left to right: First frame; Subject 1: tabby cat with a name tag; Subject 2: wicker picnic basket; Subject 3: nurse wearing a high-visibility vest; Subject 4: red umbrella covered in a thin layer of dust; Subject 5: leather suitcase softly lit; Scene2: historic city street with narrow sidewalks.">
+        </a>
+      </figure>
+      <div class="comparison-player" tabindex="0" aria-label="Case 5 comparison" aria-describedby="prompt-5">
+        <video class="comparison-video" controls muted loop playsinline preload="none" width="2688" height="864" data-src="assets/qualitative/case5.mp4" aria-label="Case 5: Camera, Ours, H3+Adaption, EditWorld; SolarWM, EchoWM, Alaya-Evoke, Lingbot-World-v2"></video>
+        <p class="global-prompt" id="prompt-5"><strong>Short prompt</strong>A brown tabby with a small gold-colored tag walks beside a wicker picnic basket on a narrow cobbled street. The camera rises past the basket&#x27;s curved handle as a nurse in a fluorescent yellow vest, white tunic, and white trousers approaches through the warm backlight. She walks past an open red umbrella with dark ribs and a curved handle. The view continues along the stone storefronts to a brown leather suitcase with rounded corners and stitched edges resting on the paving, keeping in one continuous shot.</p>
+      </div>
+    </article>
+    <article class="comparison-case" aria-labelledby="case-6">
+      <h3 id="case-6">Case 6</h3>
+      <figure class="reference-strip" tabindex="0" aria-label="Reference conditions for Case 6">
+        <a href="assets/references/case-6.png" target="_blank" rel="noopener" aria-label="View reference conditions for Case 6">
+          <img src="assets/references/case-6.png" width="2688" height="304" loading="lazy" decoding="async" alt="Reference conditions, left to right: First frame; Subject 1: rooster standing in the pasture; Subject 2: grandfather in a traditional robe; Subject 3: blooming hydrangea arranged in a basket; Subject 4: oak tree; Scene2: coastal road with distant waves.">
+        </a>
+      </figure>
+      <div class="comparison-player" tabindex="0" aria-label="Case 6 comparison" aria-describedby="prompt-6">
+        <video class="comparison-video" controls muted loop playsinline preload="none" width="2688" height="864" data-src="assets/qualitative/case6.mp4" aria-label="Case 6: Camera, Ours, H3+Adaption, EditWorld; SolarWM, EchoWM, Alaya-Evoke, Lingbot-World-v2"></video>
+        <p class="global-prompt" id="prompt-6"><strong>Short prompt</strong>A rooster with a red comb, orange-gold neck feathers, and a glossy dark tail steps through the foreground of a green coastal path. An elderly man in a long gray robe walks nearby, while a wicker basket of blue-and-white hydrangeas and broad green leaves fills the near edge of the view. The camera moves past the flowers toward a large leaning tree with a rough trunk and spreading branches. The man strolls beneath its canopy with his hands behind his back as waves break along the distant shore, keeping in one continuous shot.</p>
+      </div>
+    </article>
+    <article class="comparison-case" aria-labelledby="case-7">
+      <h3 id="case-7">Case 7</h3>
+      <figure class="reference-strip" tabindex="0" aria-label="Reference conditions for Case 7">
+        <a href="assets/references/case-7.png" target="_blank" rel="noopener" aria-label="View reference conditions for Case 7">
+          <img src="assets/references/case-7.png" width="2688" height="304" loading="lazy" decoding="async" alt="Reference conditions, left to right: First frame; Subject 1: elderly woman carrying a wicker basket; Subject 2: bunch of tulips petals slightly wilting; Subject 3: double-decker bus in bright livery; Subject 4: peony blossoms petals slightly wilting; Scene2: urban residential avenue with wide sidewalks.">
+        </a>
+      </figure>
+      <div class="comparison-player" tabindex="0" aria-label="Case 7 comparison" aria-describedby="prompt-7">
+        <video class="comparison-video" controls muted loop playsinline preload="none" width="2688" height="864" data-src="assets/qualitative/case7.mp4" aria-label="Case 7: Camera, Ours, H3+Adaption, EditWorld; SolarWM, EchoWM, Alaya-Evoke, Lingbot-World-v2"></video>
+        <p class="global-prompt" id="prompt-7"><strong>Short prompt</strong>Pale pink tulips with long green leaves fill the opening view beside a leafy residential road. As the camera pulls back, an elderly woman with gray hair and a beige cardigan walks past carrying a wicker basket. A bright red double-decker bus with two rows of windows travels along the road behind her. The camera moves toward deep pink peonies beside the sidewalk, bringing their layered, ruffled petals and glossy leaves into close-up against brick houses and sunlit trees, keeping in one continuous shot.</p>
+      </div>
+    </article>
+    <article class="comparison-case" aria-labelledby="case-8">
+      <h3 id="case-8">Case 8</h3>
+      <figure class="reference-strip" tabindex="0" aria-label="Reference conditions for Case 8">
+        <a href="assets/references/case-8.png" target="_blank" rel="noopener" aria-label="View reference conditions for Case 8">
+          <img src="assets/references/case-8.png" width="2688" height="304" loading="lazy" decoding="async" alt="Reference conditions, left to right: First frame; Subject 1: painter; Subject 2: ginger cat with floppy ears; Subject 3: wall of framed photos placed on a table; Subject 4: wildflower patch petals slightly wilting; Scene2: countryside road with scattered farmhouses.">
+        </a>
+      </figure>
+      <div class="comparison-player" tabindex="0" aria-label="Case 8 comparison" aria-describedby="prompt-8">
+        <video class="comparison-video" controls muted loop playsinline preload="none" width="2688" height="864" data-src="assets/qualitative/case8.mp4" aria-label="Case 8: Camera, Ours, H3+Adaption, EditWorld; SolarWM, EchoWM, Alaya-Evoke, Lingbot-World-v2"></video>
+        <p class="global-prompt" id="prompt-8"><strong>Short prompt</strong>A painter in a cream rolled-sleeve shirt, brown trousers, and suspenders walks beside weathered timber farm buildings at sunset. A ginger cat with a raised tail steps along a wooden display lined with small framed pictures. The camera tracks past the overlapping dark, pale, and brown frames, then moves toward a dirt lane bordered by tall white wildflowers and fine grasses. Their branching stems pass across the foreground as the painter and cat come into view beside the lane in the warm evening light, keeping in one continuous shot.</p>
+      </div>
+    </article>
+  </section>
+</div>
+</main>
+<script>
+(() => {
+  'use strict';
+  // The name and subtitle above are real HTML. No text is encoded into the videos.
+  const IDS = Array.from({length: 16}, (_, index) => index + 1);
+  const SCROLL_UNLOCK_SECONDS = 15;
+  const MASK_END = .25, CONTENT_START = .29, CONTENT_END = .48;
+  const $ = id => document.getElementById(id);
+  const stage = $('intro-screen'), grid = $('video-grid');
+  const maskLayer = $('logo-mask-layer'), maskText = $('logo-mask-text');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const clamp = n => Math.max(0, Math.min(1, n));
+  const smooth = n => { const t = clamp(n); return t*t*(3-2*t); };
+  const easeOut = n => 1 - (1-clamp(n))**3;
+  function gridEase(t) {
+    t = clamp(t);
+    let lo = 0, hi = 1, u = 0;
+    for (let i = 0; i < 22; i++) {
+      u = (lo+hi)/2;
+      const x = 3*(1-u)**2*u*.16 + 3*(1-u)*u*u*.18 + u**3;
+      if (x < t) lo = u; else hi = u;
+    }
+    return 3*(1-u)**2*u*.72 + 3*(1-u)*u*u + u**3;
+  }
+  const order = IDS.map((_, i) => i).sort((a, b) => {
+    const ring = i => Math.max(Math.abs(Math.floor(i/4)-1.5), Math.abs(i%4-1.5));
+    const angle = i => Math.atan2(Math.floor(i/4)-1.5, i%4-1.5);
+    return ring(a)-ring(b) || angle(a)-angle(b);
+  });
+  const media = IDS.map((id, index) => {
+    const tile = document.createElement('div');
+    tile.className = 'tile'; tile.dataset.id = id;
+    const video = document.createElement('video');
+    video.muted = true; video.defaultMuted = true; video.playsInline = true; video.loop = true;
+    video.setAttribute('muted', ''); video.setAttribute('playsinline', '');
+    video.preload = 'auto'; video.disablePictureInPicture = true;
+    video.src = `assets/web/case${id}.mp4`;
+    tile.append(video); grid.append(tile);
+    const rank = order.indexOf(index);
+    return {video, tile, furthestTime: 0, playedTime: 0, previousTime: 0, reveal: rank < 4 ? .12 : 2.2+(rank-4)*.11};
+  });
+  let phase = 'loading', paused = false, ready = false, failed = false;
+  let scrollProgress = 0, scrollUnlocked = false, autoResume = false;
+  let focusX = 0, shiftX = 0;
+  let launchToken = 0;
+
+  function measureMask() {
+    // Temporarily reveal for layout measurement only; reset before the next paint.
+    const hidden = maskLayer.hidden;
+    maskLayer.hidden = false;
+    const focus = $('logo-mask-focus');
+    focusX = focus.offsetLeft + focus.offsetWidth*.18;
+    shiftX = maskText.offsetWidth/2 - focusX;
+    maskText.style.transformOrigin = `${focusX}px 50%`;
+    maskLayer.hidden = hidden;
+  }
+  function paintFootage(time) {
+    grid.style.transform = `scale(${reduceMotion.matches ? 1 : 2-gridEase((time-2.2)/6.4)})`;
+    media.forEach(({tile, reveal}) => {
+      tile.style.opacity = reduceMotion.matches ? '1' : smooth((time-reveal)/.32);
+    });
+  }
+  function setScrollUnlocked(unlocked) {
+    scrollUnlocked = unlocked;
+    document.documentElement.classList.toggle('intro-locked', !unlocked);
+    if (!unlocked) window.scrollTo(0, 0);
+  }
+  function paintCamera() {
+    const track = $('intro-scroll');
+    const travel = track.offsetHeight - stage.offsetHeight;
+    scrollProgress = scrollUnlocked && travel > 0
+      ? clamp(-track.getBoundingClientRect().top / travel) : 0;
+    const zoom = easeOut(scrollProgress / MASK_END);
+    const reveal = easeOut((scrollProgress - CONTENT_START) / (CONTENT_END - CONTENT_START));
+    const settled = reveal > .985;
+    const lift = -96 * reveal;
+    maskLayer.hidden = scrollProgress === 0 || settled || reduceMotion.matches;
+    maskLayer.style.opacity = 1 - reveal * .55;
+    maskText.style.transform = `translate(${shiftX*(1-zoom)}px, ${lift}px) scale(${400-399*zoom})`;
+    $('shade').style.opacity = .38 * reveal;
+    grid.style.filter = `brightness(${1-.18*reveal})`;
+    $('logo-slot').style.opacity = reveal;
+    $('logo-slot').style.transform = `translate(-50%, calc(-50% + ${lift}px))`;
+    $('paper-title').style.opacity = reveal;
+    $('paper-title').style.transform = `translate(-50%, ${26*(1-reveal)-54*reveal}px)`;
+    $('intro-content').setAttribute('aria-hidden', reveal === 0 ? 'true' : 'false');
+    if (ready && !failed) {
+      const next = settled ? 'complete' : scrollProgress > 0 ? 'title' : 'footage';
+      if (phase !== next) { phase = next; updateControls(); }
+    }
+  }
+  function updateControls() {
+    stage.classList.toggle('is-paused', paused);
+    stage.classList.toggle('is-complete', phase === 'complete');
+    $('pause-button').textContent = paused ? 'Resume' : 'Pause';
+    $('pause-button').disabled = !ready || failed;
+    $('replay-button').disabled = !ready || failed;
+    stage.dataset.phase = phase;
+  }
+  function pause() {
+    paused = true;
+    media.forEach(({video}) => video.pause());
+    updateControls();
+  }
+  function showPlayGate() {
+    $('gate-message').textContent = 'Ready to explore.';
+    $('loading-ring').hidden = true; $('start-button').hidden = false; $('gate').hidden = false;
+  }
+  async function play() {
+    const token = ++launchToken;
+    if (failed || !ready) return;
+    // Keep the video wall playing during and after the title animation too.
+    const results = await Promise.allSettled(media.map(({video}) => video.play()));
+    if (token !== launchToken || failed) return;
+    if (results.some(r => r.status === 'rejected')) {
+      pause(); showPlayGate(); return;
+    }
+    if (document.hidden) { pause(); autoResume = true; return; }
+    paused = false; $('gate').hidden = true; updateControls();
+  }
+  async function replay() {
+    ++launchToken;
+    pause();
+    phase = 'footage'; setScrollUnlocked(false);
+    media.forEach(item => { item.video.currentTime = 0; item.video.playbackRate = 1; item.furthestTime = 0; item.playedTime = 0; item.previousTime = 0; });
+    maskLayer.hidden = true; $('shade').style.opacity = 0;
+    $('logo-slot').style.opacity = 0; $('paper-title').style.opacity = 0;
+    $('intro-content').setAttribute('aria-hidden', 'true');
+    paintCamera(); paintFootage(0); $('status').textContent = 'Playing the video wall.';
+    await play();
+  }
+  function fail(message) {
+    failed = true; ++launchToken; phase = 'error'; pause();
+    setScrollUnlocked(true);
+    $('gate').hidden = false; $('loading-ring').hidden = true;
+    $('start-button').hidden = true; $('gate-message').textContent = message;
+  }
+  function firstFrame(video) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => done(new Error('Loading timed out.')), 60000);
+      function done(error) {
+        clearTimeout(timer);
+        video.removeEventListener('loadeddata', loaded); video.removeEventListener('error', errored);
+        error ? reject(error) : resolve();
+      }
+      function loaded() { done(); }
+      function errored() { done(new Error(`Cannot load ${video.src.split('/').pop()}`)); }
+      if (video.readyState >= 2) done();
+      else { video.addEventListener('loadeddata', loaded); video.addEventListener('error', errored); }
+    });
+  }
+  function tick() {
+    if (ready && !paused && !failed && !document.hidden) {
+      media.forEach(item => {
+        const time = item.video.currentTime;
+        let delta = time - item.previousTime;
+        // Preserve actual media progress when the 15-second sources loop.
+        if (delta < 0 && Number.isFinite(item.video.duration)) delta += item.video.duration;
+        item.playedTime += Math.max(0, delta);
+        item.previousTime = time;
+        item.furthestTime = Math.max(item.furthestTime, time);
+      });
+      paintFootage(Math.min(...media.map(item => item.furthestTime)));
+      if (!scrollUnlocked && Math.min(...media.map(item => item.playedTime)) >= SCROLL_UNLOCK_SECONDS) {
+        setScrollUnlocked(true);
+        $('status').textContent = 'Scroll to explore OnerWorld.';
+      }
+    }
+    paintCamera();
+    requestAnimationFrame(tick);
+  }
+  $('pause-button').addEventListener('click', () => { paused ? play() : pause(); });
+  $('replay-button').addEventListener('click', replay);
+  $('start-button').addEventListener('click', play);
+  const fullscreen = $('fullscreen-button');
+  if (!document.fullscreenEnabled) fullscreen.hidden = true;
+  fullscreen.addEventListener('click', async () => {
+    try { document.fullscreenElement ? await document.exitFullscreen() : await stage.requestFullscreen(); }
+    catch { $('status').textContent = 'Full screen is unavailable in this browser.'; }
+  });
+  document.addEventListener('fullscreenchange', () => { fullscreen.textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen'; });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { autoResume = ready && !paused && !failed; if (autoResume) pause(); }
+    else if (autoResume) { autoResume = false; play(); }
+  });
+  new ResizeObserver(measureMask).observe(stage);
+  reduceMotion.addEventListener('change', paintCamera);
+  media.forEach(({video}) => video.addEventListener('error', () => fail('A video could not be loaded. Keep this HTML file beside its assets folder, then reload.')));
+  Promise.all(media.map(({video}) => firstFrame(video))).then(async () => {
+    if (failed) return;
+    await document.fonts.ready;
+    ready = true; phase = 'footage'; measureMask(); updateControls(); await play();
+  }).catch(() => fail('The video files could not be loaded. Keep this HTML file beside its assets folder, then reload.'));
+  // Read-only diagnostics for integration and browser verification.
+  window.onerWorldIntro = Object.freeze({
+    getState: () => ({phase, paused, scrollProgress, scrollUnlocked,
+      playedTimes: media.map(item => item.playedTime),
+      times: media.map(({video}) => video.currentTime),
+      ended: media.map(({video}) => video.ended)})
+  });
+  history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+  requestAnimationFrame(tick);
+})();
+</script>
+
+<script>
+(() => {
+  const videos = [...document.querySelectorAll('.comparison-video')];
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  function load(video) {
+    if (video.dataset.src) {
+      video.src = video.dataset.src;
+      delete video.dataset.src;
+      video.preload = 'metadata';
+    }
+  }
+  // Each eight-panel movie has one shared timeline. Load only nearby cases.
+  const loader = new IntersectionObserver(entries => {
+    entries.forEach(({target, isIntersecting}) => {
+      if (isIntersecting) { load(target); loader.unobserve(target); }
+    });
+  }, {rootMargin: '500px 0px'});
+  const playback = new IntersectionObserver(entries => {
+    entries.forEach(({target, isIntersecting}) => {
+      target.dataset.inView = String(isIntersecting);
+      if (isIntersecting && !document.hidden && !reducedMotion.matches) {
+        load(target);
+        target.play().catch(() => {});
+      } else { target.pause(); }
+    });
+  }, {threshold: .35});
+  videos.forEach(video => { loader.observe(video); playback.observe(video); });
+  document.addEventListener('visibilitychange', () => {
+    videos.forEach(video => {
+      if (document.hidden) {
+        video.dataset.resume = String(!video.paused);
+        video.pause();
+      } else if (video.dataset.resume === 'true' && video.dataset.inView === 'true') {
+        video.play().catch(() => {});
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
